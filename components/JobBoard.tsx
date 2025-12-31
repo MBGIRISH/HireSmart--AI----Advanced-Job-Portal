@@ -1,9 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Job, User, Application } from '../types';
-import { Storage } from '../services/storage';
+import { apiService } from '../services/api';
 import { Search, MapPin, Briefcase, DollarSign, Filter, Sparkles, AlertCircle } from 'lucide-react';
-import { matchJobAndResume } from '../services/gemini';
 
 interface JobBoardProps {
   user: User | null;
@@ -15,40 +14,72 @@ const JobBoard: React.FC<JobBoardProps> = ({ user }) => {
   const [applying, setApplying] = useState<string | null>(null);
   const [scores, setScores] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
+  const [myApplications, setMyApplications] = useState<Application[]>([]);
 
   useEffect(() => {
-    setJobs(Storage.getJobs());
-    // In a real app, we'd pre-calculate or lazy-load match scores
-  }, []);
+    loadJobs();
+    if (user) {
+      loadMyApplications();
+    }
+  }, [user]);
+
+  const loadJobs = async () => {
+    setLoading(true);
+    try {
+      const jobsData = await apiService.getJobs({ limit: 100 });
+      setJobs(jobsData);
+    } catch (error) {
+      console.error('Failed to load jobs:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadMyApplications = async () => {
+    try {
+      const applications = await apiService.getMyApplications();
+      setMyApplications(applications);
+      // Create scores map from applications
+      const scoresMap: Record<string, number> = {};
+      applications.forEach(app => {
+        // Handle both snake_case (API) and camelCase (frontend) formats
+        const score = (app as any).match_score || app.matchScore || 0;
+        scoresMap[app.jobId] = score;
+      });
+      setScores(scoresMap);
+    } catch (error) {
+      console.error('Failed to load applications:', error);
+    }
+  };
 
   const handleApply = async (job: Job) => {
     if (!user) {
       alert("Please login to apply");
       return;
     }
-    if (!user.resumeText) {
-      alert("Please upload your resume in your profile first!");
-      return;
-    }
 
     setApplying(job.id);
     try {
-      const result = await matchJobAndResume(job.description + " requirements: " + job.requirements.join(", "), user.resumeText);
-      const app: Application = {
-        id: Math.random().toString(36).substr(2, 9),
-        jobId: job.id,
-        userId: user.id,
-        status: 'Pending',
-        matchScore: result.score,
-        matchAnalysis: result.analysis,
-        appliedAt: new Date().toISOString()
-      };
-      Storage.addApplication(app);
-      setScores(prev => ({ ...prev, [job.id]: result.score }));
-      alert(`Application sent! Match Score: ${result.score}%`);
-    } catch (error) {
-      console.error(error);
-      alert("AI Analysis failed. Please try again.");
+      const application = await apiService.applyToJob(job.id);
+      const matchScore = application.matchScore || 0;
+      setScores(prev => ({ ...prev, [job.id]: matchScore }));
+      alert(`Application sent! Match Score: ${matchScore}%`);
+      // Reload applications to update the list
+      await loadMyApplications();
+    } catch (error: any) {
+      console.error('Apply error:', error);
+      // Handle validation errors
+      if (error.response?.status === 422) {
+        const errors = error.response?.data?.detail;
+        if (Array.isArray(errors)) {
+          const errorMessages = errors.map((e: any) => `${e.loc?.join('.')}: ${e.msg}`).join(', ');
+          alert(errorMessages);
+        } else {
+          alert(error.response?.data?.detail || "Validation failed. Please check your input.");
+        }
+      } else {
+        alert(error.response?.data?.detail || "Failed to apply. Please try again.");
+      }
     } finally {
       setApplying(null);
     }
@@ -98,7 +129,7 @@ const JobBoard: React.FC<JobBoardProps> = ({ user }) => {
                 </div>
               </div>
               <hr className="border-slate-100" />
-              {!user?.resumeText && (
+              {user && !myApplications.length && (
                 <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 flex items-start space-x-3">
                   <AlertCircle className="text-amber-600 shrink-0" size={20} />
                   <p className="text-xs text-amber-800 leading-relaxed">
@@ -111,7 +142,14 @@ const JobBoard: React.FC<JobBoardProps> = ({ user }) => {
         </div>
 
         <div className="lg:col-span-2 space-y-4">
-          {filteredJobs.length > 0 ? filteredJobs.map(job => (
+          {loading ? (
+            <div className="bg-white rounded-2xl p-12 border border-slate-200 text-center">
+              <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto"></div>
+              <p className="text-slate-500 mt-4">Loading jobs...</p>
+            </div>
+          ) : filteredJobs.length > 0 ? filteredJobs.map(job => {
+            const hasApplied = myApplications.some(app => app.jobId === job.id);
+            return (
             <div key={job.id} className="bg-white rounded-2xl p-6 border border-slate-200 hover:border-indigo-400 transition-all shadow-sm group">
               <div className="flex justify-between items-start">
                 <div className="flex space-x-4">
@@ -162,23 +200,30 @@ const JobBoard: React.FC<JobBoardProps> = ({ user }) => {
               </div>
 
               <div className="mt-6 flex justify-end items-center space-x-4">
-                <button 
-                  onClick={() => handleApply(job)}
-                  disabled={applying === job.id}
-                  className="px-6 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
-                >
-                  {applying === job.id ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      <span>Analyzing...</span>
-                    </>
-                  ) : (
-                    <span>Quick Apply</span>
-                  )}
-                </button>
+                {hasApplied ? (
+                  <span className="px-6 py-2 bg-green-100 text-green-700 text-sm font-semibold rounded-lg">
+                    Applied
+                  </span>
+                ) : (
+                  <button 
+                    onClick={() => handleApply(job)}
+                    disabled={applying === job.id || !user}
+                    className="px-6 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
+                  >
+                    {applying === job.id ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        <span>Analyzing...</span>
+                      </>
+                    ) : (
+                      <span>Quick Apply</span>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
-          )) : (
+          );
+          }) : (
             <div className="bg-white rounded-2xl p-12 border border-dashed border-slate-300 text-center">
               <p className="text-slate-500">No jobs found matching your criteria.</p>
             </div>

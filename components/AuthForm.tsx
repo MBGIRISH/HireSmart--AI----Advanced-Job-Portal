@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { User, UserRole } from '../types';
-import { Storage } from '../services/storage';
+import { apiService } from '../services/api';
 import { Mail, Lock, User as UserIcon, ShieldCheck, Briefcase } from 'lucide-react';
 
 interface AuthFormProps {
@@ -16,27 +16,48 @@ const AuthForm: React.FC<AuthFormProps> = ({ type, onAuth }) => {
     password: '',
     role: UserRole.JOB_SEEKER
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (type === 'signup') {
-      const newUser: User = {
-        id: Math.random().toString(36).substr(2, 9),
-        name: formData.name,
-        email: formData.email,
-        role: formData.role
-      };
-      Storage.saveUser(newUser);
-      onAuth(newUser);
-    } else {
-      const users = Storage.getUsers();
-      const user = users.find(u => u.email === formData.email);
-      if (user) {
+    setError(null);
+    setLoading(true);
+
+    try {
+      if (type === 'signup') {
+        const { user } = await apiService.register(
+          formData.email,
+          formData.password,
+          formData.name,
+          formData.role
+        );
         onAuth(user);
       } else {
-        alert("User not found. Try signing up!");
+        const { user } = await apiService.login(formData.email, formData.password);
+        onAuth(user);
       }
+    } catch (err: any) {
+      console.error('Auth error:', err);
+      // Handle validation errors from FastAPI
+      if (err.response?.status === 422) {
+        const errors = err.response?.data?.detail;
+        if (Array.isArray(errors)) {
+          // FastAPI validation errors format
+          const errorMessages = errors.map((e: any) => `${e.loc?.join('.')}: ${e.msg}`).join(', ');
+          setError(errorMessages);
+        } else if (typeof errors === 'string') {
+          setError(errors);
+        } else {
+          setError('Validation failed. Please check your input.');
+        }
+      } else if (err.response?.data?.detail) {
+        setError(err.response.data.detail);
+      } else {
+        setError('Authentication failed. Please try again.');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -49,6 +70,11 @@ const AuthForm: React.FC<AuthFormProps> = ({ type, onAuth }) => {
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
+          {error && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+              {error}
+            </div>
+          )}
           {type === 'signup' && (
             <div>
               <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Full Name</label>
@@ -119,9 +145,10 @@ const AuthForm: React.FC<AuthFormProps> = ({ type, onAuth }) => {
 
           <button 
             type="submit"
-            className="w-full py-4 bg-indigo-600 text-white font-extrabold rounded-2xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all transform hover:-translate-y-0.5"
+            disabled={loading}
+            className="w-full py-4 bg-indigo-600 text-white font-extrabold rounded-2xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
           >
-            {type === 'login' ? 'Sign In' : 'Create Account'}
+            {loading ? 'Processing...' : type === 'login' ? 'Sign In' : 'Create Account'}
           </button>
         </form>
       </div>

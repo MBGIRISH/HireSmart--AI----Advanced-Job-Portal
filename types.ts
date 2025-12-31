@@ -43,6 +43,14 @@ export interface Application {
   matchScore: number;
   matchAnalysis: string;
   appliedAt: string;
+  candidate?: {
+    id: string;
+    email: string;
+    name: string;
+    role: UserRole;
+  };
+  profile?: ParsedProfile;
+  resumeText?: string;
 }
 
 export interface MatchResult {

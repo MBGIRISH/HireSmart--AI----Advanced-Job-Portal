@@ -3,19 +3,21 @@ import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { User, UserRole } from '../types';
 import { LogOut, Briefcase, User as UserIcon, LayoutDashboard, Search, Settings } from 'lucide-react';
-import { Storage } from '../services/storage';
 
 interface LayoutProps {
   children: React.ReactNode;
   user: User | null;
+  onLogout?: () => void;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, user }) => {
+const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    Storage.logout();
-    window.location.href = '/';
+    if (onLogout) {
+      onLogout();
+    }
+    navigate('/');
   };
 
   return (

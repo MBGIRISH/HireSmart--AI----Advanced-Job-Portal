@@ -1,18 +1,49 @@
-
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { Shield, Users, Briefcase, Activity, AlertTriangle, FileCheck } from 'lucide-react';
+import { apiService } from '../services/api';
+import { User } from '../types';
 
-const data = [
-  { name: 'Jan', apps: 400, jobs: 240 },
-  { name: 'Feb', apps: 300, jobs: 139 },
-  { name: 'Mar', apps: 200, jobs: 980 },
-  { name: 'Apr', apps: 278, jobs: 390 },
-  { name: 'May', apps: 189, jobs: 480 },
-  { name: 'Jun', apps: 239, jobs: 380 },
-];
+interface AdminDashboardProps {
+  user: User | null;
+}
 
-const AdminDashboard: React.FC = () => {
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
+  const [analytics, setAnalytics] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadAnalytics();
+  }, []);
+
+  const loadAnalytics = async () => {
+    try {
+      const data = await apiService.getDashboardAnalytics();
+      setAnalytics(data);
+    } catch (error) {
+      console.error('Failed to load analytics:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-12">
+        <div className="flex items-center justify-center h-64">
+          <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // Mock chart data (in production, this would come from analytics)
+  const chartData = [
+    { name: 'Jan', apps: analytics?.applications?.total || 0, jobs: analytics?.jobs?.total || 0 },
+    { name: 'Feb', apps: (analytics?.applications?.total || 0) * 0.8, jobs: (analytics?.jobs?.total || 0) * 0.9 },
+    { name: 'Mar', apps: (analytics?.applications?.total || 0) * 1.2, jobs: (analytics?.jobs?.total || 0) * 1.1 },
+  ];
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-12">
       <div className="mb-12">
@@ -25,10 +56,36 @@ const AdminDashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
         {[
-          { label: 'Total Users', val: '12.4k', icon: Users, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-          { label: 'Platform Jobs', val: '1,204', icon: Briefcase, color: 'text-violet-600', bg: 'bg-violet-50' },
-          { label: 'AI Success Rate', val: '99.4%', icon: Activity, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'System Uptime', val: '99.9%', icon: Shield, color: 'text-blue-600', bg: 'bg-blue-50' }
+          { 
+            label: 'Total Users', 
+            val: analytics?.users?.total || 0, 
+            icon: Users, 
+            color: 'text-indigo-600', 
+            bg: 'bg-indigo-50' 
+          },
+          { 
+            label: 'Platform Jobs', 
+            val: analytics?.jobs?.total || 0, 
+            icon: Briefcase, 
+            color: 'text-violet-600', 
+            bg: 'bg-violet-50' 
+          },
+          { 
+            label: 'AI Success Rate', 
+            val: analytics?.applications?.average_match_score 
+              ? `${analytics.applications.average_match_score}%` 
+              : 'N/A', 
+            icon: Activity, 
+            color: 'text-emerald-600', 
+            bg: 'bg-emerald-50' 
+          },
+          { 
+            label: 'System Uptime', 
+            val: '99.9%', 
+            icon: Shield, 
+            color: 'text-blue-600', 
+            bg: 'bg-blue-50' 
+          }
         ].map((stat, i) => (
           <div key={i} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
             <div className={`w-12 h-12 ${stat.bg} ${stat.color} rounded-2xl flex items-center justify-center mb-6`}>
@@ -48,7 +105,7 @@ const AdminDashboard: React.FC = () => {
           </h3>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data}>
+              <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="colorApps" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2}/>
@@ -71,19 +128,15 @@ const AdminDashboard: React.FC = () => {
            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
              <h3 className="font-bold text-lg mb-6 flex items-center space-x-3">
                <AlertTriangle className="text-amber-500" size={18} />
-               <span>Pending Verification</span>
+               <span>User Statistics</span>
              </h3>
              <div className="space-y-4">
-                {[
-                  { name: 'Global Tech Corp', role: 'Enterprise' },
-                  { name: 'Startup Ninja', role: 'Startup' }
-                ].map((comp, i) => (
-                  <div key={i} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                {analytics?.users?.by_role && Object.entries(analytics.users.by_role).map(([role, count]: [string, any]) => (
+                  <div key={role} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
                     <div>
-                      <p className="font-bold text-sm">{comp.name}</p>
-                      <p className="text-xs text-slate-500">{comp.role}</p>
+                      <p className="font-bold text-sm">{role}</p>
+                      <p className="text-xs text-slate-500">{count} users</p>
                     </div>
-                    <button className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors">Review</button>
                   </div>
                 ))}
              </div>
@@ -93,9 +146,12 @@ const AdminDashboard: React.FC = () => {
              <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center mb-6">
                <FileCheck className="text-indigo-400" size={24} />
              </div>
-             <h3 className="text-xl font-bold mb-2">Audit Log</h3>
-             <p className="text-slate-400 text-sm mb-6 leading-relaxed">Platform security is monitored 24/7. AI logs are stored for 90 days.</p>
-             <button className="w-full py-3 bg-white text-slate-900 rounded-xl font-bold hover:bg-slate-100 transition-colors">Download Report</button>
+             <h3 className="text-xl font-bold mb-2">Analytics</h3>
+             <p className="text-slate-400 text-sm mb-6 leading-relaxed">
+               Total Applications: {analytics?.applications?.total || 0}
+               <br />
+               Average Match Score: {analytics?.applications?.average_match_score || 0}%
+             </p>
            </div>
         </div>
       </div>

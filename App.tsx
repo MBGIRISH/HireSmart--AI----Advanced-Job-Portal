@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { User, UserRole } from './types';
-import { Storage } from './services/storage';
+import { apiService } from './services/api';
 import Layout from './components/Layout';
 import Home from './components/Home';
 import JobBoard from './components/JobBoard';
@@ -16,14 +16,39 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedUser = Storage.getCurrentUser();
-    if (savedUser) setUser(savedUser);
-    setLoading(false);
+    const loadUser = async () => {
+      try {
+        const savedUserStr = localStorage.getItem('current_user');
+        if (savedUserStr) {
+          const savedUser = JSON.parse(savedUserStr);
+          // Verify token is still valid by fetching current user
+          try {
+            const currentUser = await apiService.getCurrentUser();
+            setUser(currentUser);
+          } catch (error) {
+            // Token invalid or expired, use saved user for now
+            setUser(savedUser);
+          }
+        }
+      } catch (error) {
+        // Error parsing or loading user
+        console.error('Error loading user:', error);
+        apiService.logout();
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadUser();
   }, []);
 
   const handleLogin = (u: User) => {
-    Storage.setCurrentUser(u);
+    localStorage.setItem('current_user', JSON.stringify(u));
     setUser(u);
+  };
+
+  const handleLogout = () => {
+    apiService.logout();
+    setUser(null);
   };
 
   if (loading) return (
@@ -34,7 +59,7 @@ const App: React.FC = () => {
 
   return (
     <Router>
-      <Layout user={user}>
+      <Layout user={user} onLogout={handleLogout}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/jobs" element={<JobBoard user={user} />} />
@@ -45,11 +70,11 @@ const App: React.FC = () => {
           <Route path="/profile" element={user ? <Profile user={user} onUpdate={setUser} /> : <Navigate to="/login" />} />
           <Route 
             path="/recruiter" 
-            element={user?.role === UserRole.RECRUITER ? <RecruiterDashboard /> : <Navigate to="/" />} 
+            element={user?.role === UserRole.RECRUITER || user?.role === UserRole.ADMIN ? <RecruiterDashboard user={user} /> : <Navigate to="/" />} 
           />
           <Route 
             path="/admin" 
-            element={user?.role === UserRole.ADMIN ? <AdminDashboard /> : <Navigate to="/" />} 
+            element={user?.role === UserRole.ADMIN ? <AdminDashboard user={user} /> : <Navigate to="/" />} 
           />
         </Routes>
       </Layout>

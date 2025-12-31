@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: hiresmart_postgres
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: hiresmart_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hiresmart_backend
+    environment:
+      DATABASE_URL: postgresql://user:password@postgres:5432/hiresmart_db
+      SECRET_KEY: your-secret-key-change-this-in-production
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      CORS_ORIGINS: http://localhost:3000,http://localhost:5173
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./backend/uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Run migrations then start server
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+volumes:
+  postgres_data:
+
