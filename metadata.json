@@ -1,0 +1,5 @@
+{
+  "name": "HireSmart AI - Advanced Job Portal",
+  "description": "A production-ready job portal featuring AI-powered resume parsing, job matching, and recruiter analytics using the Gemini 3 Pro model.",
+  "requestFramePermissions": []
+}
