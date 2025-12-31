@@ -183,7 +183,7 @@ async def update_application(
     db.commit()
     db.refresh(application)
     
-    return ApplicationResponse.from_orm(application)
+    return ApplicationResponse.model_validate(application)
 
 
 @router.get("/{application_id}", response_model=ApplicationResponse)
@@ -210,5 +210,5 @@ async def get_application(
                 detail="You don't have permission to view this application"
             )
     
-    return ApplicationResponse.from_orm(application)
+    return ApplicationResponse.model_validate(application)
 

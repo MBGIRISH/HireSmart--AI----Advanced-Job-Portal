@@ -128,6 +128,21 @@ A production-ready AI-powered job portal with intelligent resume-job matching, b
 - **PostgreSQL** 15+ (or use Docker)
 - **Docker** and Docker Compose (recommended for easy setup)
 
+### Installing Docker
+
+If Docker is not installed, you can install it from:
+- **macOS**: Download [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/)
+- **Linux**: Follow [Docker installation guide](https://docs.docker.com/engine/install/)
+- **Windows**: Download [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)
+
+After installation, verify Docker is working:
+```bash
+docker --version
+docker compose version
+```
+
+**Note**: Modern Docker uses `docker compose` (with space) instead of `docker-compose` (with hyphen). Both commands are used in this README for compatibility.
+
 ## 🚀 Quick Start
 
 ### Option 1: Docker Compose (Recommended)
@@ -142,7 +157,8 @@ The easiest way to get started is using Docker Compose, which handles all depend
 
 2. **Start backend services**
    ```bash
-   docker-compose up -d
+   docker compose up -d
+   # Or if you have older Docker: docker-compose up -d
    ```
    This will:
    - Start PostgreSQL database on port 5432
@@ -390,7 +406,8 @@ To populate the database with sample data:
 
 ```bash
 # Using Docker
-docker-compose exec backend python scripts/seed_data.py
+docker compose exec backend python scripts/seed_data.py
+# Or: docker-compose exec backend python scripts/seed_data.py
 
 # Manual setup
 cd backend
@@ -583,7 +600,7 @@ HireSmart-AI---Advanced-Job-Portal/
 - Verify PostgreSQL is running: `pg_isready`
 - Check `DATABASE_URL` in `.env` file
 - Ensure database exists: `createdb hiresmart_db`
-- If using Docker: `docker-compose up -d postgres`
+- If using Docker: `docker compose up -d postgres` (or `docker-compose up -d postgres`)
 
 **Import errors**
 - Activate virtual environment
@@ -616,14 +633,19 @@ HireSmart-AI---Advanced-Job-Portal/
 ### Docker Issues
 
 **Container won't start**
-- Check logs: `docker-compose logs backend`
+- Check logs: `docker compose logs backend` (or `docker-compose logs backend`)
 - Verify Docker is running: `docker ps`
-- Rebuild containers: `docker-compose build --no-cache`
+- Rebuild containers: `docker compose build --no-cache` (or `docker-compose build --no-cache`)
 
 **Database connection in Docker**
-- Ensure postgres service is healthy: `docker-compose ps`
+- Ensure postgres service is healthy: `docker compose ps` (or `docker-compose ps`)
 - Check environment variables in `docker-compose.yml`
 - Verify network connectivity between containers
+
+**Docker command not found**
+- Install Docker Desktop from [docker.com](https://www.docker.com/products/docker-desktop/)
+- Verify installation: `docker --version`
+- Modern Docker uses `docker compose` (space), older versions use `docker-compose` (hyphen)
 
 ## 🧪 Testing
 

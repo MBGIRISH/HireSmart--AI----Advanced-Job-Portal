@@ -66,7 +66,7 @@ async def create_job(
 ):
     """Create a new job posting (Recruiter/Admin only)"""
     new_job = Job(
-        **job_data.dict(),
+        **job_data.model_dump(),
         recruiter_id=current_user.id
     )
     
@@ -74,7 +74,7 @@ async def create_job(
     db.commit()
     db.refresh(new_job)
     
-    return JobResponse.from_orm(new_job)
+    return JobResponse.model_validate(new_job)
 
 
 @router.put("/{job_id}", response_model=JobResponse)
@@ -101,7 +101,7 @@ async def update_job(
         )
     
     # Update job fields
-    update_data = job_data.dict(exclude_unset=True)
+    update_data = job_data.model_dump(exclude_unset=True)
     if "is_active" in update_data:
         update_data["is_active"] = "true" if update_data["is_active"] else "false"
     
