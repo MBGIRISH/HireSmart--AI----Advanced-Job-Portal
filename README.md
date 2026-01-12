@@ -7,24 +7,6 @@ A production-ready AI-powered job portal with intelligent resume-job matching, b
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-blue)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)
 
-## Screenshots
-
-### Homepage
-![Homepage](output/01-homepage.png)
-*Landing page with job search interface*
-
-### Job Board
-![Job Board](output/02-job-board.png)
-*Job listings with AI match scores*
-
-### Profile Dashboard
-![Profile Dashboard](output/03-profile-dashboard.png)
-*User profile with parsed resume data*
-
-### Recruiter Dashboard
-![Recruiter Dashboard](output/04-recruiter-dashboard.png)
-*Recruiter view with AI-ranked candidates*
-
 ## Table of Contents
 
 - [Features](#features)
@@ -37,6 +19,7 @@ A production-ready AI-powered job portal with intelligent resume-job matching, b
 - [Configuration](#configuration)
 - [API Documentation](#api-documentation)
 - [Database Management](#database-management)
+- [Output](#output)
 - [Deployment](#deployment)
 - [Troubleshooting](#troubleshooting)
 - [Project Structure](#project-structure)
@@ -612,6 +595,24 @@ python scripts/seed_data.py
 - **Admin**: `admin@hiresmart.com` / `admin123`
 - **Recruiter**: `recruiter1@hiresmart.com` / `recruiter123`
 - **Job Seeker**: `jobseeker1@hiresmart.com` / `seeker123`
+
+## Output
+
+### Homepage
+![Homepage](output/01-homepage.png)
+*Landing page with job search interface*
+
+### Job Board
+![Job Board](output/02-job-board.png)
+*Job listings with AI match scores*
+
+### Profile Dashboard
+![Profile Dashboard](output/03-profile-dashboard.png)
+*User profile with parsed resume data*
+
+### Recruiter Dashboard
+![Recruiter Dashboard](output/04-recruiter-dashboard.png)
+*Recruiter view with AI-ranked candidates*
 
 ## Deployment
 
