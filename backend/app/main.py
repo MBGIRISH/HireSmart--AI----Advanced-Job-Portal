@@ -42,13 +42,22 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware
+# CORS middleware - allow all origins in development
+cors_origins = settings.CORS_ORIGINS
+# In development, allow all origins
+if settings.ENVIRONMENT == "development" or "*" in cors_origins:
+    cors_origins = ["*"]
+    allow_credentials = False  # Can't use credentials with wildcard
+else:
+    allow_credentials = True
+    
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=cors_origins,
+    allow_credentials=allow_credentials,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Custom logging middleware

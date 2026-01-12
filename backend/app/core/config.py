@@ -36,8 +36,14 @@ class Settings(BaseSettings):
     @property
     def CORS_ORIGINS(self) -> List[str]:
         """Get CORS origins as a list"""
-        cors_str = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173")
-        return [origin.strip() for origin in cors_str.split(",")]
+        # Default origins for development
+        default_origins = "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173"
+        cors_str = os.getenv("CORS_ORIGINS", default_origins)
+        origins = [origin.strip() for origin in cors_str.split(",")]
+        # In development, also allow any localhost/127.0.0.1 origin
+        if os.getenv("ENVIRONMENT", "development") == "development":
+            origins.append("*")  # Allow all origins in development
+        return origins
     
     # File upload
     MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB

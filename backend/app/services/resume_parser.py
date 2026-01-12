@@ -86,31 +86,57 @@ class ResumeParser:
         return list(set(found_skills))  # Remove duplicates
     
     def extract_education(self, text: str) -> List[Dict[str, str]]:
-        """Extract education information"""
+        """Extract education information - balance between accuracy and completeness"""
         education = []
         text_lower = text.lower()
+        original_text = text  # Keep original for better matching
         
         # Look for education section
-        education_pattern = r'(?:education|academic background|qualifications?)[:;]?\s*(.*?)(?:\n\n|\n(?:experience|work|projects)|$)'
+        education_pattern = r'(?:education|academic background|qualifications?|academic qualifications?)[:;]?\s*(.*?)(?:\n\n|\n(?:experience|work experience|professional experience|projects?|skills?|technical skills?)|$)'
         education_match = re.search(education_pattern, text_lower, re.IGNORECASE | re.DOTALL)
         
+        education_text = ""
         if education_match:
             education_text = education_match.group(1)
-            
-            # Extract degree patterns
-            degree_patterns = [
-                r'(bachelor|b\.?s\.?c\.?|b\.?a\.?|b\.?e\.?)\s+(?:of\s+)?(?:science|arts|engineering|technology)?\s*(?:in\s+)?([^\n,]+)',
-                r'(master|m\.?s\.?c\.?|m\.?a\.?|m\.?e\.?|m\.?b\.?a\.?)\s+(?:of\s+)?(?:science|arts|engineering|business|technology)?\s*(?:in\s+)?([^\n,]+)',
-                r'(ph\.?d\.?|doctorate|ph\.?d)\s+(?:in\s+)?([^\n,]+)',
-                r'(diploma|certificate)\s+(?:in\s+)?([^\n,]+)'
-            ]
-            
-            for pattern in degree_patterns:
-                matches = re.finditer(pattern, education_text, re.IGNORECASE)
-                for match in matches:
-                    degree = match.group(0).strip()
-                    # Try to find institution and year
-                    institution = self._extract_institution(education_text, match.start())
+        else:
+            # If no explicit section, search entire text but be more careful
+            education_text = text
+        
+        # Flexible degree patterns - look for degree keywords followed by field and institution
+        degree_patterns = [
+            # B.E. / B.E in Computer Science / B.E Computer Science
+            r'(b\.?e\.?|bachelor(?:\s+of)?\s+engineering)\s+(?:in\s+)?([^\n,]{0,50}?)(?:\s*[,\-]\s*|\s+)([A-Z][^\n,]{0,80}?(?:college|university|institute|school|univ|university))',
+            # B.Sc / Bachelor of Science
+            r'(b\.?s\.?c\.?|bachelor(?:\s+of)?\s+science)\s+(?:in\s+)?([^\n,]{0,50}?)(?:\s*[,\-]\s*|\s+)([A-Z][^\n,]{0,80}?(?:college|university|institute|school|univ|university))',
+            # M.Sc / Master of Science
+            r'(m\.?s\.?c\.?|master(?:\s+of)?\s+science)\s+(?:in\s+)?([^\n,]{0,50}?)(?:\s*[,\-]\s*|\s+)([A-Z][^\n,]{0,80}?(?:college|university|institute|school|univ|university))',
+            # M.E / Master of Engineering
+            r'(m\.?e\.?|master(?:\s+of)?\s+engineering)\s+(?:in\s+)?([^\n,]{0,50}?)(?:\s*[,\-]\s*|\s+)([A-Z][^\n,]{0,80}?(?:college|university|institute|school|univ|university))',
+            # MBA
+            r'(m\.?b\.?a\.?|master(?:\s+of)?\s+business\s+administration)\s+(?:in\s+)?([^\n,]{0,50}?)(?:\s*[,\-]\s*|\s+)([A-Z][^\n,]{0,80}?(?:college|university|institute|school|univ|university))',
+            # PhD
+            r'(ph\.?d\.?|doctorate|ph\.?d)\s+(?:in\s+)?([^\n,]{0,50}?)(?:\s*[,\-]\s*|\s+)([A-Z][^\n,]{0,80}?(?:college|university|institute|school|univ|university))',
+        ]
+        
+        for pattern in degree_patterns:
+            matches = re.finditer(pattern, education_text, re.IGNORECASE)
+            for match in matches:
+                groups = match.groups()
+                if len(groups) >= 3:
+                    degree_type = groups[0].strip()
+                    field = groups[1].strip() if groups[1] else ""
+                    institution = groups[2].strip()
+                    
+                    # Build degree name
+                    if field:
+                        degree = f"{degree_type} in {field}".strip()
+                    else:
+                        degree = degree_type
+                    
+                    # Skip if this looks like a project (has project-like keywords)
+                    if any(proj_word in degree.lower() for proj_word in ['project', 'system', 'detection', 'forecasting', 'matching', 'anomaly', 'screening']):
+                        continue
+                    
                     year = self._extract_year(education_text, match.start())
                     
                     education.append({
@@ -118,6 +144,28 @@ class ResumeParser:
                         "institution": institution,
                         "year": year
                     })
+        
+        # Fallback: Simple pattern matching for common formats
+        if not education:
+            # Pattern: "B.E in Computer Science" or "B.E Computer Science" followed by institution
+            simple_pattern = r'\b(b\.?e\.?|b\.?s\.?c\.?|m\.?s\.?c\.?|m\.?e\.?|m\.?b\.?a\.?|ph\.?d\.?|bachelor|master|doctorate)\b[^\n]{0,150}?(college|university|institute|school|univ)[^\n]{0,50}'
+            matches = re.finditer(simple_pattern, text_lower, re.IGNORECASE)
+            for match in matches:
+                match_text = original_text[match.start():match.end()].strip()
+                # Find where institution keyword starts
+                inst_match = re.search(r'(college|university|institute|school|univ)', match_text, re.IGNORECASE)
+                if inst_match:
+                    degree = match_text[:inst_match.start()].strip()
+                    institution = match_text[inst_match.start():].strip()
+                    
+                    # Skip projects
+                    if not any(proj_word in degree.lower() for proj_word in ['project', 'system', 'detection', 'forecasting', 'matching', 'anomaly']):
+                        year = self._extract_year(text, match.start())
+                        education.append({
+                            "degree": degree.title(),
+                            "institution": institution[:100],
+                            "year": year
+                        })
         
         return education
     
@@ -147,49 +195,115 @@ class ResumeParser:
         return "Not specified"
     
     def extract_experience(self, text: str) -> List[Dict[str, str]]:
-        """Extract work experience"""
+        """Extract work experience and projects"""
         experience = []
         text_lower = text.lower()
+        original_text = text
         
-        # Look for experience section
-        experience_pattern = r'(?:experience|work experience|employment|professional experience)[:;]?\s*(.*?)(?:\n\n|\n(?:education|skills|projects)|$)'
+        # Look for experience/projects section
+        experience_pattern = r'(?:experience|work experience|employment|professional experience|projects?|project experience)[:;]?\s*(.*?)(?:\n\n|\n(?:education|academic|skills?|technical skills?|certifications?)|$)'
         experience_match = re.search(experience_pattern, text_lower, re.IGNORECASE | re.DOTALL)
         
+        experience_text = ""
         if experience_match:
             experience_text = experience_match.group(1)
+        else:
+            # If no explicit section, try to find project/experience entries in the text
+            experience_text = text
+        
+        # Split into lines for line-by-line parsing
+        lines = experience_text.split('\n')
+        current_entry = None
+        
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+            if not line_stripped or len(line_stripped) < 5:
+                continue
             
-            # Pattern for job entries (title, company, duration)
-            # Common formats:
-            # - Title at Company (Duration)
-            # - Company - Title (Duration)
-            job_patterns = [
-                r'([A-Z][^\n]+?)\s+(?:at|@)\s+([A-Z][^\n(]+?)\s*\(([^)]+)\)',
-                r'([A-Z][^\n]+?)\s*[-–]\s*([A-Z][^\n(]+?)\s*\(([^)]+)\)',
-                r'([A-Z][^\n]+?)\s+([A-Z][^\n]+?)\s+(\d{4}\s*[-–]\s*(?:present|\d{4}))',
-            ]
+            # Skip education lines
+            if any(edu_word in line_stripped.lower() for edu_word in ['bachelor', 'master', 'phd', 'b.e', 'm.s', 'degree', 'university', 'college']):
+                # But allow if it's clearly a project about education systems
+                if not any(proj_word in line_stripped.lower() for proj_word in ['project', 'system', 'application']):
+                    continue
             
-            for pattern in job_patterns:
-                matches = re.finditer(pattern, experience_text, re.MULTILINE)
-                for match in matches:
-                    if len(match.groups()) >= 3:
-                        title = match.group(1).strip()
-                        company = match.group(2).strip()
-                        duration = match.group(3).strip()
-                        
-                        # Extract description (next few lines)
-                        start_pos = match.end()
-                        next_entry = re.search(r'[A-Z][^\n]+?\s+(?:at|@|[-–])\s+[A-Z]', experience_text[start_pos:start_pos+500])
-                        if next_entry:
-                            description = experience_text[start_pos:start_pos+next_entry.start()].strip()
-                        else:
-                            description = experience_text[start_pos:start_pos+200].strip()
-                        
-                        experience.append({
-                            "title": title,
-                            "company": company,
-                            "duration": duration,
-                            "description": description[:500]  # Limit description length
-                        })
+            # Pattern 1: Title at Company (Duration)
+            match1 = re.search(r'^([A-Z][^\n(]{5,80}?)\s+(?:at|@)\s+([A-Z][^\n(]{3,50}?)\s*\(([^)]+)\)', line_stripped, re.IGNORECASE)
+            if match1:
+                if current_entry:
+                    experience.append(current_entry)
+                current_entry = {
+                    "title": match1.group(1).strip(),
+                    "company": match1.group(2).strip(),
+                    "duration": match1.group(3).strip(),
+                    "description": ""
+                }
+                continue
+            
+            # Pattern 2: Project Title or Job Title (standalone, might be followed by description)
+            if re.match(r'^[A-Z][^\n]{10,100}?$', line_stripped) and len(line_stripped.split()) >= 2:
+                # Check if next lines have more info
+                if i + 1 < len(lines) and lines[i + 1].strip():
+                    # Might be a project or job title
+                    if current_entry:
+                        experience.append(current_entry)
+                    current_entry = {
+                        "title": line_stripped,
+                        "company": "Not specified",
+                        "duration": "Not specified",
+                        "description": ""
+                    }
+                    # Collect description from next lines
+                    desc_lines = []
+                    for j in range(i + 1, min(i + 5, len(lines))):
+                        next_line = lines[j].strip()
+                        if not next_line or len(next_line) < 10:
+                            break
+                        # Stop if we hit another entry
+                        if re.match(r'^[A-Z][^\n]{10,100}?$', next_line) and len(next_line.split()) >= 2:
+                            break
+                        desc_lines.append(next_line)
+                    if desc_lines:
+                        current_entry["description"] = ' '.join(desc_lines)[:500]
+                    experience.append(current_entry)
+                    current_entry = None
+                continue
+            
+            # Pattern 3: Add to description if we have a current entry
+            if current_entry and len(line_stripped) > 10:
+                if not current_entry["description"]:
+                    current_entry["description"] = line_stripped[:500]
+                else:
+                    current_entry["description"] += " " + line_stripped[:200]
+                    if len(current_entry["description"]) > 500:
+                        current_entry["description"] = current_entry["description"][:500]
+        
+        # Add last entry if exists
+        if current_entry:
+            experience.append(current_entry)
+        
+        # Fallback: Look for common project/job patterns in entire text
+        if not experience:
+            # Pattern: Lines that look like project titles (capitalized, multiple words, not education)
+            project_pattern = r'^([A-Z][A-Za-z\s]{10,100}?)(?:\s*\(([^)]+)\))?$'
+            for line in lines:
+                line_stripped = line.strip()
+                match = re.match(project_pattern, line_stripped)
+                if match and len(line_stripped.split()) >= 2:
+                    title = match.group(1).strip()
+                    # Skip education
+                    if any(edu_word in title.lower() for edu_word in ['bachelor', 'master', 'phd', 'b.e', 'degree']):
+                        continue
+                    # Skip if too short or looks like a header
+                    if len(title) < 10 or title.isupper():
+                        continue
+                    
+                    duration = match.group(2).strip() if match.group(2) else "Not specified"
+                    experience.append({
+                        "title": title,
+                        "company": "Not specified",
+                        "duration": duration,
+                        "description": ""
+                    })
         
         return experience
     
